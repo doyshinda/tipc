@@ -65,23 +65,26 @@ impl TipcConn {
         Ok(Self {socket})
     }
 
-    pub fn broadcast(self, msg: &str, nameseq_type: u32) {
-        unsafe {
-            // let socket = tipc_socket(__socket_type_SOCK_RDM as i32);
-            let addr = tipc_addr {
-                type_: nameseq_type,
-                instance: 0,
-                node: 0,
-            };
-            // let msg_ptr: *const c_void = s.as_ptr() as *const c_void;
-            let bytes_sent = tipc_mcast(
+    /// Broadcast a message to every node bound to `nameseq_type`. Returns the number
+    /// of bytes sent.
+    pub fn broadcast(self, msg: &str, nameseq_type: u32) -> TipcResult<i32> {
+        let addr = tipc_addr {
+            type_: nameseq_type,
+            instance: 0,
+            node: 0,
+        };
+        let bytes_sent = unsafe {
+            tipc_mcast(
                 self.socket,
                 msg.as_ptr() as *const c_void,
                 msg.len() as size_t,
                 &addr,
-            );
-            println!("bytes sent: {:?}", bytes_sent);
+            )
+        };
+        if bytes_sent < 0 {
+            return Err(TipcError::new("Error broadcasting msg"));
         }
+        Ok(bytes_sent)
     }
 }
 
