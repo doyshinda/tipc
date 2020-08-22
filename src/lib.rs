@@ -10,6 +10,7 @@
 use std::process::Command;
 use std::os::raw::{c_void, c_int};
 use crossbeam_channel::Sender;
+use errno::errno;
 
 // Include the generated C-API bindings
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
@@ -49,19 +50,34 @@ pub enum SockType {
     SOCK_RDM = __socket_type_SOCK_RDM as isize,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct TipcConn {
     socket: c_int,
 }
 
+/// Error information about the attempted TIPC operation
+/// # Example
+/// ```
+/// use errno::{Errno, set_errno};
+///
+/// set_errno(Errno(113));
+///
+/// let e = TipcError::new("My error message");
+/// assert_eq!(e.code, 113);
+/// assert_eq!(e.description, "My error message: No route to host");
+///```
 #[derive(Debug)]
 pub struct TipcError {
+    pub code: i32,
     pub description: String,
 }
 
 impl TipcError {
     pub fn new(err_msg: &str) -> Self {
+        let e = errno();
         TipcError {
-            description: err_msg.to_string(),
+            description: format!("{}: {}", err_msg, e),
+            code: e.0,
         }
     }
 }
@@ -85,6 +101,9 @@ impl TipcConn {
     /// Connect to a connection oriented socket.
     /// # Example
     /// ```
+    /// let conn = TipcConn::new(SockType::SOCK_SEQPACKET).unwrap();
+    /// conn.connect(88888, 69, 0).unwrap();
+    /// assert_eq!(conn.send(b"foo").unwrap(), 3);
     /// ```
     pub fn connect(&self, type_: u32, instance: u32, node: u32) -> TipcResult<()> {
         let addr = tipc_addr {type_, instance, node};
@@ -138,6 +157,10 @@ impl TipcConn {
             node: 0,
         };
         let s = unsafe { tipc_accept(self.socket, &mut addr) };
+        if s < 0 {
+            return Err(TipcError::new("Error accepting a connection"));
+        }
+
         return Ok(Self{socket: s});
     }
 
@@ -161,6 +184,27 @@ impl TipcConn {
         }
 
         return Ok(r)
+    }
+
+    /// Anycast
+    pub fn anycast(&self, msg: &str, server_type: u32) -> TipcResult<i32> {
+        let addr = tipc_addr {
+            type_: server_type,
+            instance: 0,
+            node: 0,
+        };
+        let bytes_sent = unsafe {
+            tipc_sendto(
+                self.socket,
+                msg.as_ptr() as *const c_void,
+                msg.len() as size_t,
+                &addr,
+            )
+        };
+        if bytes_sent < 0 {
+            return Err(TipcError::new("Error anycasting msg"));
+        }
+        Ok(bytes_sent)
     }
 
     /// Broadcast data to every node bound to `nameseq_type`. Returns the number
@@ -190,6 +234,21 @@ impl TipcConn {
             return Err(TipcError::new("Error broadcasting msg"));
         }
         Ok(bytes_sent)
+    }
+
+    pub fn join(&self, group_id: u32, member_id: u32) -> TipcResult<()> {
+        let mut addr = tipc_addr {
+            type_: group_id,
+            instance: member_id,
+            node: 0,
+        };
+
+        let r = unsafe { tipc_join(self.socket, &mut addr, true, false) };
+        if r < 0 {
+            return Err(TipcError::new("Unable to join group"));
+        }
+
+        Ok(())
     }
 
     /// Bind to an address.
