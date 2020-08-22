@@ -82,7 +82,88 @@ impl TipcConn {
         Ok(Self {socket})
     }
 
-    /// Broadcast a message to every node bound to `nameseq_type`. Returns the number
+    /// Connect to a connection oriented socket.
+    /// # Example
+    /// ```
+    /// ```
+    pub fn connect(&self, type_: u32, instance: u32, node: u32) -> TipcResult<()> {
+        let addr = tipc_addr {type_, instance, node};
+        let r = unsafe { tipc_connect(self.socket, &addr) };
+        if r < 0 {
+            return Err(TipcError::new("Unable to connect to socket"));
+        }
+
+        Ok(())
+    }
+
+    /// Listen for incoming connections.
+    /// # Example
+    /// ```
+    /// let conn = TipcConn::new(SockType::SOCK_SEQPACKET).unwrap();
+    /// conn.bind(88888, 69, 69, 0).expect("Unable to bind to address");
+    /// conn.listen(1).unwrap();
+    /// ```
+    pub fn listen(&self, backlog: i32) -> TipcResult<()> {
+        let r = unsafe { tipc_listen(self.socket, backlog) };
+        if r < 0 {
+            return Err(TipcError::new("Unable to listen for new connections"));
+        }
+
+        Ok(())
+    }
+
+    /// Accept a connection on a listening socket.
+    /// # Example
+    /// ```
+    /// let conn = TipcConn::new(SockType::SOCK_SEQPACKET).unwrap();
+    /// conn.bind(88888, 69, 69, 0).expect("Unable to bind to address");
+    /// conn.listen(1).unwrap();
+    /// let new_conn = conn.accept().unwrap();
+    /// let (s, r): (Sender<Vec<u8>>, Receiver<Vec<u8>>) = unbounded();
+    /// thread::spawn(move || {
+    ///     loop {
+    ///         match r.recv() {
+    ///             Ok(m) => println!("{}", str::from_utf8(&m).unwrap()),
+    ///             Err(e) => panic!("error reading: {:?}", e),
+    ///         }
+    ///     }
+    /// });
+    ///
+    /// new_conn.recv(s);
+    /// ```
+    pub fn accept(&self) -> TipcResult<Self> {
+        let mut addr = tipc_addr {
+            type_: 0,
+            instance: 0,
+            node: 0,
+        };
+        let s = unsafe { tipc_accept(self.socket, &mut addr) };
+        return Ok(Self{socket: s});
+    }
+
+    /// Send data on a connected socket.
+    /// # Example
+    /// ```
+    /// let conn = TipcConn::new(SockType::SOCK_SEQPACKET).unwrap();
+    /// conn.connect(88888, 69, 0).unwrap();
+    /// assert_eq!(conn.send(b"foo").unwrap(), 3);
+    /// ```
+    pub fn send(&self, data: &[u8]) -> TipcResult<i32> {
+        let r = unsafe {
+            tipc_send(
+                self.socket,
+                data as *const _ as *const c_void,
+                data.len() as u64,
+            )
+        };
+        if r < 0 {
+            return Err(TipcError::new("unable send data"));
+        }
+
+        return Ok(r)
+    }
+
+    /// Broadcast data to every node bound to `nameseq_type`. Returns the number
     /// of bytes sent.
     /// # Example
     /// ```
@@ -150,6 +231,7 @@ impl TipcConn {
     pub fn recv(&self, tx: Sender<Vec<u8>>) {
         let mut buf: [u8; MAX_RECV_SIZE] = [0; MAX_RECV_SIZE];
         loop {
+            // TODO: Handle other side closing connection
             let msg_size = unsafe {
                  tipc_recv(
                     self.socket,
