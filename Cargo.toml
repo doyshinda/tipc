@@ -10,6 +10,9 @@ edition = "2018"
 name = "tipc"
 path = "src/lib.rs"
 
+[dependencies]
+crossbeam-channel = "0.4.3"
+
 [build-dependencies]
 bindgen = "0.54.1"
 cc = "1.0"
