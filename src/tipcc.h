@@ -49,15 +49,16 @@
 
 /* Addressing:
  * - If (type == 0) struct tipc_addr is referring to a socket
- * - If (node == 0) the lookup/binding scope is cluster global
  */
 struct tipc_addr {
 	uint32_t type;
 	uint32_t instance;
 	uint32_t node;
+	uint32_t scope;
 };
 
 uint32_t tipc_own_node(void);
+uint32_t tipc_own_socket(void);
 char* tipc_ntoa(const struct tipc_addr *addr, char *buf, size_t len);
 char* tipc_rtoa(uint32_t type, uint32_t lower, uint32_t upper,uint32_t node,
 		char *buf, size_t len);

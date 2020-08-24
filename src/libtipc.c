@@ -65,6 +65,7 @@
 #endif
 
 static uint32_t own_node = 0;
+static uint32_t own_socket = 0;
 
 static inline __u8 node2scope(uint32_t node)
 {
@@ -72,6 +73,12 @@ static inline __u8 node2scope(uint32_t node)
 		return TIPC_NODE_SCOPE;
 	else
 		return TIPC_CLUSTER_SCOPE;
+}
+
+uint32_t tipc_own_socket(void)
+{
+	tipc_own_node();
+	return own_socket;
 }
 
 uint32_t tipc_own_node(void)
@@ -83,8 +90,10 @@ uint32_t tipc_own_node(void)
 		return own_node;
 
 	sd = tipc_socket(SOCK_RDM);
-	if (tipc_sockaddr(sd, &socket) == 0)
+	if (tipc_sockaddr(sd, &socket) == 0) {
+		own_socket = socket.instance;
 		own_node = socket.node;
+	}
 	close(sd);
 	return own_node;
 }
@@ -276,7 +285,6 @@ int tipc_sendto(int sd, const void *msg, size_t msg_len,
 int tipc_mcast(int sd, const void *msg, size_t msg_len,
 	       const struct tipc_addr *dst)
 {
-	uint32_t node;
 	struct sockaddr_tipc addr = {
 		.family                  = AF_TIPC,
 		.addrtype                = TIPC_ADDR_MCAST,
@@ -285,15 +293,11 @@ int tipc_mcast(int sd, const void *msg, size_t msg_len,
 	if(!dst) {
 		return -1;
 	}
-	node = dst->node;
-	if (node && node != tipc_own_node()) {
-		return -1;
-	}
 
-	addr.scope = node2scope(node);
+	addr.scope = dst->scope;
 	addr.addr.nameseq.type = dst->type;
 	addr.addr.nameseq.lower = dst->instance;
-	addr.addr.nameseq.upper = dst->instance;
+	addr.addr.nameseq.upper = dst->node;
 
 	return sendto(sd, msg, msg_len, 0,
 		      (struct sockaddr*)&addr, sizeof(addr));
