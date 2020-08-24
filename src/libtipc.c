@@ -387,7 +387,7 @@ int tipc_recvfrom(int sd, void *buf, size_t len, struct tipc_addr *sockid,
 int tipc_topsrv_conn(uint32_t node)
 {
 	int sd;
-	struct tipc_addr srv = {TIPC_TOP_SRV, TIPC_TOP_SRV, node};
+	struct tipc_addr srv = {TIPC_TOP_SRV, TIPC_TOP_SRV, node, TIPC_CLUSTER_SCOPE};
 
 	sd = tipc_socket(SOCK_SEQPACKET);
 	if (sd <= 0)
@@ -526,7 +526,7 @@ int tipc_link_evt(int sd, uint32_t *neigh_node, bool *available,
 
 char* tipc_linkname(char *buf, size_t len, uint32_t peer, int bearerid)
 {
-	struct tipc_sioc_ln_req req = {peer, bearerid, };
+	struct tipc_sioc_ln_req req = {peer, bearerid, {'\0'}};
 	int sd, rc;
 
 	buf[0] = 0;
