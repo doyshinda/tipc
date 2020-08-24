@@ -350,6 +350,13 @@ impl TipcConn {
         Ok(bytes_sent)
     }
 
+    /// Join a group
+    /// # Example
+    /// ```
+    /// # use tipc::{TipcConn, SockType, TipcScope};
+    /// let conn = TipcConn::new(SockType::SOCK_RDM).unwrap();
+    /// conn.join(88888, 1, TipcScope::CLUSTER).unwrap();
+    /// ```
     pub fn join(&self, group_id: u32, member_id: u32, scope: TipcScope) -> TipcResult<()> {
         let mut addr = tipc_addr {
             type_: group_id,
@@ -364,6 +371,23 @@ impl TipcConn {
         }
 
         Ok(())
+    }
+
+    /// Leave a group.
+    /// # Example
+    /// ```
+    /// # use tipc::{TipcConn, SockType, TipcScope};
+    /// let conn = TipcConn::new(SockType::SOCK_RDM).unwrap();
+    /// conn.join(88888, 1, TipcScope::CLUSTER).unwrap();
+    /// conn.leave().unwrap();
+    /// ```
+    pub fn leave(&self) -> TipcResult<()> {
+        let r = unsafe { tipc_leave(self.socket) };
+        if r < 0 {
+            return Err(TipcError::new("Leave error"));
+        }
+
+        return Ok(())
     }
 
     /// Bind to an address.
