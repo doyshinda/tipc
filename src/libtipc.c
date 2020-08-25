@@ -156,15 +156,12 @@ int tipc_bind(int sd, uint32_t type, uint32_t lower, uint32_t upper,
 	struct sockaddr_tipc addr = {
 		.family                  = AF_TIPC,
 		.addrtype                = TIPC_SERVICE_RANGE,
-		.scope                   = node2scope(scope),
+		.scope                   = scope,
 		.addr.nameseq.type       = type,
 		.addr.nameseq.lower      = lower,
 		.addr.nameseq.upper      = upper
 	};
-	printf("scope: %d\n", node2scope(scope));
-	// if (scope && scope != tipc_own_node())
-	// 	printf("own_node: %d\n", tipc_own_node());
-	// 	return -1;
+
 	return bind(sd, (struct sockaddr *)&addr, sizeof(addr));
 }
 
