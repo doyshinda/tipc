@@ -53,22 +53,22 @@ pub struct TipcAddr {
 
 #[derive(Clone, Copy)]
 pub enum SockType {
-    SOCK_STREAM = __socket_type_SOCK_STREAM as isize,
-    SOCK_DGRAM = __socket_type_SOCK_DGRAM as isize,
-    SOCK_SEQPACKET = __socket_type_SOCK_SEQPACKET as isize,
-    SOCK_RDM = __socket_type_SOCK_RDM as isize,
+    SockStream = __socket_type_SOCK_STREAM as isize,
+    SockDgram = __socket_type_SOCK_DGRAM as isize,
+    SockSeqpacket = __socket_type_SOCK_SEQPACKET as isize,
+    SockRdm = __socket_type_SOCK_RDM as isize,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub enum TipcScope {
-    CLUSTER = TIPC_CLUSTER_SCOPE as isize,
-    NODE = TIPC_NODE_SCOPE as isize,
+    Cluster = TIPC_CLUSTER_SCOPE as isize,
+    Node = TIPC_NODE_SCOPE as isize,
 }
 
 #[derive(Debug)]
 pub enum GroupMessage {
-    MEMBER_EVENT(Membership),
-    DATA_EVENT(Vec<u8>),
+    MemberEvent(Membership),
+    DataEvent(Vec<u8>),
 }
 
 /// Error information about the attempted TIPC operation
@@ -328,7 +328,7 @@ impl TipcConn {
     /// it to the transmission side of an unbounded channel.
     /// # Example
     /// ```ignore
-    /// let conn = TipcConn::new(SockType::SOCK_RDM).unwrap();
+    /// let conn = TipcConn::new(SockType::SockRdm).unwrap();
     /// let addr = TipcAddr{server_type: 88888, instance: 0, node: 10, scope: TipcScope::CLUSTER};
     /// conn.bind(&addr).expect("Unable to bind to address");
     ///
@@ -360,8 +360,8 @@ impl TipcConn {
     /// the number of bytes received.
     /// # Example
     /// ```ignore
-    /// let conn = TipcConn::new(SockType::SOCK_RDM).unwrap();
-    /// let addr = TipcAddr{server_type: 88888, instance: 0, node: 10, scope: TipcScope::CLUSTER};
+    /// let conn = TipcConn::new(SockType::SockRdm).unwrap();
+    /// let addr = TipcAddr{server_type: 88888, instance: 0, node: 10, scope: TipcScope::Cluster};
     /// conn.bind(&addr).expect("Unable to bind to address");
     /// let mut buf: [u8; tipc::MAX_RECV_SIZE] = [0; tipc::MAX_RECV_SIZE];
     /// loop {
@@ -388,8 +388,8 @@ impl TipcConn {
     /// and sending it to the the transmission side of an unbounded channel.
     /// # Example
     /// ```ignore
-    /// let conn = TipcConn::new(SockType::SOCK_RDM).unwrap();
-    /// let addr = BindAddr{server: 88888, lower: 0, upper: 10, scope: TipcScope::CLUSTER};
+    /// let conn = TipcConn::new(SockType::SockRdm).unwrap();
+    /// let addr = BindAddr{server: 88888, lower: 0, upper: 10, scope: TipcScope::Cluster};
     /// conn.bind(&addr).expect("Unable to bind to address");
     ///
     /// let (s, r): (Sender<GroupMessage>, Receiver<GroupMessage>) = unbounded();
@@ -423,7 +423,7 @@ impl TipcConn {
             };
 
             let msg = if msg_size == 0 {
-                GroupMessage::MEMBER_EVENT(
+                GroupMessage::MemberEvent(
                     Membership{
                         socket_id: socket_addr.instance,
                         node_id: socket_addr.node,
@@ -434,7 +434,7 @@ impl TipcConn {
                 )
             } else {
                 let data = buf[0..msg_size as usize].to_vec();
-                GroupMessage::DATA_EVENT(data)
+                GroupMessage::DataEvent(data)
             };
             if let Err(e) = tx.send(msg) {
                 println!("Send error: {:?}", e);
