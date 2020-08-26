@@ -220,7 +220,7 @@ int tipc_join(int sd, struct tipc_addr *memberid, bool events, bool loopback)
 	struct tipc_group_req mreq = {
 		.type = memberid->type,
 		.instance = memberid->instance,
-		.scope = node2scope(node),
+		.scope = memberid->scope,
 	};
 
 	if (node && node != tipc_own_node())

@@ -60,6 +60,11 @@ pub enum SockType {
 }
 
 #[derive(Debug, Clone, Copy)]
+/// ```
+/// # use tipc::TipcScope;
+/// assert_eq!(TipcScope::Cluster as u32, 2);
+/// assert_eq!(TipcScope::Node as u32, 3);
+/// ```
 pub enum TipcScope {
     Cluster = TIPC_CLUSTER_SCOPE as isize,
     Node = TIPC_NODE_SCOPE as isize,
@@ -102,8 +107,8 @@ type TipcResult<T> = Result<T, TipcError>;
 
 #[derive(Debug)]
 pub struct Membership {
-    pub socket_id: u32,
-    pub node_id: u32,
+    pub socket_ref: u32,
+    pub node_ref: u32,
     pub service_address: u32,
     pub service_instance: u32,
     pub joined: bool,
@@ -115,29 +120,46 @@ impl fmt::Display for Membership {
             f,
             "{}:{} ({}:{})",
             self.service_address, self.service_instance,
-            self.socket_id, self.node_id
+            self.socket_ref, self.node_ref
         )
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct TipcConn {
     socket: c_int,
-    socket_id: u32,
-    node_id: u32,
+    socket_ref: u32,
+    node_ref: u32,
+}
+
+impl Drop for TipcConn {
+    fn drop(&mut self) {
+        self.close();
+    }
 }
 
 impl TipcConn {
+    pub fn socket_ref(&self) -> u32 {
+        self.socket_ref
+    }
+
+    pub fn node_ref(&self) -> u32 {
+        self.node_ref
+    }
+
+    fn close(&self) {
+        unsafe { tipc_close(self.socket) };
+    }
+
     /// Create a new conn of a specific socket type.
     pub fn new(socktype: SockType) -> TipcResult<Self> {
-        let (socket, socket_id, node_id) = unsafe {
-            (tipc_socket(socktype as i32), tipc_own_socket(), tipc_own_node())
-        };
+        let socket = unsafe { tipc_socket(socktype as i32) };
         if socket < 0 {
             return Err(TipcError::new("Unable to initialize socket"))
         }
 
-        Ok(Self {socket, socket_id, node_id})
+        let (socket_ref, node_ref) = socket_and_node_refs(socket)?;
+        Ok(Self {socket, socket_ref, node_ref})
     }
 
     /// Set the socket to be non-blocking. This causes socket calls to return a
@@ -189,10 +211,8 @@ impl TipcConn {
             return Err(TipcError::new("Error accepting a connection"));
         }
 
-        let (socket_id, node_id) = unsafe {
-            (tipc_own_socket(), tipc_own_node())
-        };
-        return Ok(Self {socket, socket_id, node_id});
+        let (socket_ref, node_ref) = socket_and_node_refs(socket)?;
+        return Ok(Self {socket, socket_ref, node_ref});
     }
 
     /// Send data to the socket. Returns the number of bytes sent.
@@ -425,8 +445,8 @@ impl TipcConn {
             let msg = if msg_size == 0 {
                 GroupMessage::MemberEvent(
                     Membership{
-                        socket_id: socket_addr.instance,
-                        node_id: socket_addr.node,
+                        socket_ref: socket_addr.instance,
+                        node_ref: socket_addr.node,
                         service_address: member_addr.type_,
                         service_instance: member_addr.instance,
                         joined: if err == 0 { true } else { false },
@@ -452,6 +472,21 @@ impl TipcConn {
             )
         }
     }
+}
+
+fn socket_and_node_refs(socket: c_int) -> TipcResult<(u32, u32)> {
+    let mut addr = tipc_addr {
+        type_: 0,
+        instance: 0,
+        node: 0,
+        scope: 0,
+    };
+    let r = unsafe { tipc_sockaddr(socket, &mut addr) };
+    if r < 0 {
+        return Err(TipcError::new("Unable to determine socket and node refs"))
+    }
+
+    Ok((addr.instance, addr.node))
 }
 
 #[cfg(test)]
