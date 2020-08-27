@@ -1,4 +1,4 @@
-use tipc::{TipcConn, SockType, McastAddr, AcastAddr, UnicastAddr, TipcScope, BindAddr, GroupMessage};
+use tipc::{TipcConn, SockType, TipcAddr, TipcScope, GroupMessage};
 use std::{thread, time};
 use crossbeam_channel::{unbounded, Sender, Receiver};
 use clap::{App, Arg};
@@ -14,9 +14,9 @@ fn handle_messages(r: Receiver<Vec<u8>>) {
 
 fn print_group_message(m: &GroupMessage) {
     match m {
-        GroupMessage::DATA_EVENT(d) => println!("group message: {}", std::str::from_utf8(&d).unwrap()),
-        GroupMessage::MEMBER_EVENT(e) => {
-            let event_type = if e.joined { "joined" } else { "left" };
+        GroupMessage::DataEvent(d) => println!("group message: {}", std::str::from_utf8(&d).unwrap()),
+        GroupMessage::MemberEvent(e) => {
+            let event_type = if e.joined() { "joined" } else { "left" };
             println!("member {} {}", e, event_type);
         }
     }
@@ -66,7 +66,7 @@ fn main() {
         .get_matches();
 
     let is_client = matches.is_present("client");
-    let mut conn = TipcConn::new(SockType::SOCK_RDM).unwrap();
+    let mut conn = TipcConn::new(SockType::SockRdm).unwrap();
 
     let is_group = matches.is_present("group");
     let a = matches.value_of("address").unwrap();
@@ -81,25 +81,26 @@ fn main() {
 
     if is_group {
         println!("joined group {:?}", a);
-        conn.join(a, i, TipcScope::CLUSTER).unwrap();
+        let join_addr = TipcAddr{server_type: a, instance: i, node: i, scope: TipcScope::Cluster};
+        conn.join(&join_addr).unwrap();
     }
     if is_client {
         conn.set_sock_non_block().unwrap();
         let mut n = 0;
         loop {
             if matches.is_present("multicast") {
-                let addr = McastAddr{server: r, lower: i, upper: i, scope: TipcScope::CLUSTER};
+                let addr = TipcAddr{server_type: r, instance: i, node: i, scope: TipcScope::Cluster};
                 let data = format!("Client multicast testing {}", n);
                 let mut rc = -1;
                 while rc < 0 {
                     match conn.multicast(data.as_bytes(), &addr) {
                         Ok(r) => rc = r,
                         Err(e) => {
-                            if e.code == 11 {
+                            if e.code() == 11 {
                                 println!("{}", "EAGAIN");
                                 thread::sleep(time::Duration::from_millis(100));
                             } else {
-                                rc = e.code;
+                                rc = e.code();
                             }
                         }
                     }
@@ -112,7 +113,7 @@ fn main() {
                 conn.broadcast(data.as_bytes()).unwrap();
             }
             if matches.is_present("anycast") {
-                let addr = AcastAddr{server: r, scope: TipcScope::CLUSTER};
+                let addr = TipcAddr{server_type: r, instance: i, node: i, scope: TipcScope::Cluster};
                 // let data = format!("Client anycast testing {}", n);
                 let data = "Foo";
                 let mut rc = -1;
@@ -120,12 +121,12 @@ fn main() {
                     match conn.anycast(data.as_bytes(), &addr) {
                         Ok(r) => rc = r,
                         Err(e) => {
-                            if e.code == 11 {
+                            if e.code() == 11 {
                                 println!("{}", "EAGAIN");
                                 thread::sleep(time::Duration::from_millis(100));
                             } else {
-                                rc = e.code;
-                                println!("rc: {} err: {}", rc, e.description);
+                                rc = e.code();
+                                println!("rc: {} err: {}", rc, e.description());
                             }
                         }
                     }
@@ -133,7 +134,8 @@ fn main() {
                 }
             }
             if matches.is_present("unicast") {
-                let addr = UnicastAddr{socket_id: r, node_id: node, scope: TipcScope::CLUSTER};
+                let addr = TipcAddr{server_type: 0, instance: r, node, scope: TipcScope::Cluster};
+                println!("unicasting to {}:{}", r, node);
                 let data = format!("Client unicast testing {}", n);
                 conn.unicast(data.as_bytes(), &addr).unwrap();
             }
@@ -142,20 +144,26 @@ fn main() {
         }
     } else {
         if !is_group {
-            let addr = BindAddr{
-                server: a,
-                lower: i,
-                upper: i,
-                scope: TipcScope::CLUSTER,
+            let addr = TipcAddr{
+                server_type: a,
+                instance: i,
+                node: i,
+                scope: TipcScope::Cluster,
             };
             conn.bind(&addr).expect("Unable to bind to address");
+            println!("here");
             let (s, r): (Sender<Vec<u8>>, Receiver<Vec<u8>>) = unbounded();
             thread::spawn(move || handle_messages(r));
-            conn.recv(s);
+            conn.recv_loop(s).unwrap();
+            // let mut buf: [u8; tipc::MAX_RECV_SIZE] = [0; tipc::MAX_RECV_SIZE];
+            // loop {
+            //     let msg_size = conn.recv_buf(&mut buf).unwrap();
+            //     println!("{}", std::str::from_utf8(&buf[0..msg_size as usize]).unwrap())
+            // }
         } else {
             let (s, r): (Sender<GroupMessage>, Receiver<GroupMessage>) = unbounded();
             thread::spawn(move || handle_group_messages(r));
-            conn.recvfrom(s);
+            conn.recvfrom_loop(s);
         }
 
 

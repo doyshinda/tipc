@@ -12,7 +12,7 @@ fn main() {
     let bindings = bindgen::Builder::default()
         // The input header we would like to generate
         // bindings for.
-        .header("wrapper.h")
+        .header("include/tipcc.h")
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.
         .parse_callbacks(Box::new(bindgen::CargoCallbacks))
@@ -30,6 +30,6 @@ fn main() {
     // Compile the code
     println!("cargo:rerun-if-changed=src/libtipc.c");
     cc::Build::new()
-        .file("src/libtipc.c")
+        .file("include/libtipc.c")
         .compile("libtipc");
 }

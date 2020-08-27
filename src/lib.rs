@@ -8,42 +8,23 @@
 #![allow(non_upper_case_globals)]
 #![allow(dead_code)]
 
-use std::{process::Command, fmt};
 use std::os::raw::{c_void, c_int};
 use crossbeam_channel::Sender;
-use errno::errno;
 
-// Include the generated C-API bindings
-include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+mod bindings;
+mod cmd;
+mod error;
+mod group;
 
-const TIPC: &'static str = "tipc";
-pub const MAX_RECV_SIZE: usize = TIPC_MAX_USER_MSG_SIZE as usize;
+use bindings::*;
+pub use cmd::{set_host_addr, attach_to_interface};
+pub use group::{GroupMessage, Membership};
+pub use error::TipcError;
 
-// TODO: change `addr` to a custom type
-pub fn set_host_addr(addr: String) {
-    let cmd_output = Command::new(TIPC)
-                        .arg("node")
-                        .arg("set")
-                        .arg("addr")
-                        .arg(&addr)
-                        .output()
-                        .expect("Failed to set node addr");
-    println!("Output: {:?}", cmd_output.stdout);
-}
+pub const MAX_MSG_SIZE: usize = TIPC_MAX_USER_MSG_SIZE as usize;
 
-pub fn attach_to_interface(iface: &str) {
-    let cmd_output = Command::new(TIPC)
-                        .arg("bearer")
-                        .arg("enable")
-                        .arg("media")
-                        .arg("eth")
-                        .arg("device")
-                        .arg(iface)
-                        .output()
-                        .expect("Failed to attach to interface");
-    println!("Output: {:?}", cmd_output);
-}
-
+/// TIPC address details.
+#[derive(Debug)]
 pub struct TipcAddr {
     pub server_type: u32,
     pub instance: u32,
@@ -51,6 +32,7 @@ pub struct TipcAddr {
     pub scope: TipcScope,
 }
 
+/// TIPC socket type to be used.
 #[derive(Clone, Copy)]
 pub enum SockType {
     SockStream = __socket_type_SOCK_STREAM as isize,
@@ -60,6 +42,7 @@ pub enum SockType {
 }
 
 #[derive(Debug, Clone, Copy)]
+/// The scope to use when binding to an address.
 /// ```
 /// # use tipc::TipcScope;
 /// assert_eq!(TipcScope::Cluster as u32, 2);
@@ -70,60 +53,7 @@ pub enum TipcScope {
     Node = TIPC_NODE_SCOPE as isize,
 }
 
-#[derive(Debug)]
-pub enum GroupMessage {
-    MemberEvent(Membership),
-    DataEvent(Vec<u8>),
-}
-
-/// Error information about the attempted TIPC operation
-/// # Example
-/// ```
-/// # use errno::{Errno, set_errno};
-/// # use tipc::TipcError;
-/// set_errno(Errno(113));
-///
-/// let e = TipcError::new("My error message");
-/// assert_eq!(e.code, 113);
-/// assert_eq!(e.description, "My error message: No route to host");
-///```
-#[derive(Debug)]
-pub struct TipcError {
-    pub code: i32,
-    pub description: String,
-}
-
-impl TipcError {
-    pub fn new(err_msg: &str) -> Self {
-        let e = errno();
-        TipcError {
-            description: format!("{}: {}", err_msg, e),
-            code: e.0,
-        }
-    }
-}
-
 type TipcResult<T> = Result<T, TipcError>;
-
-#[derive(Debug)]
-pub struct Membership {
-    pub socket_ref: u32,
-    pub node_ref: u32,
-    pub service_address: u32,
-    pub service_instance: u32,
-    pub joined: bool,
-}
-
-impl fmt::Display for Membership {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}:{} ({}:{})",
-            self.service_address, self.service_instance,
-            self.socket_ref, self.node_ref
-        )
-    }
-}
 
 #[derive(Debug)]
 pub struct TipcConn {
@@ -366,7 +296,7 @@ impl TipcConn {
     ///
     /// conn.recv_loop(s)
     pub fn recv_loop(&self, tx: Sender<Vec<u8>>) -> TipcResult<()>{
-        let mut buf: [u8; MAX_RECV_SIZE] = [0; MAX_RECV_SIZE];
+        let mut buf: [u8; MAX_MSG_SIZE] = [0; MAX_MSG_SIZE];
         loop {
             let msg_size = self.recv_buf(&mut buf)?;
             let msg = buf[0..msg_size as usize].to_vec();
@@ -383,17 +313,17 @@ impl TipcConn {
     /// let conn = TipcConn::new(SockType::SockRdm).unwrap();
     /// let addr = TipcAddr{server_type: 88888, instance: 0, node: 10, scope: TipcScope::Cluster};
     /// conn.bind(&addr).expect("Unable to bind to address");
-    /// let mut buf: [u8; tipc::MAX_RECV_SIZE] = [0; tipc::MAX_RECV_SIZE];
+    /// let mut buf: [u8; tipc::MAX_MSG_SIZE] = [0; tipc::MAX_MSG_SIZE];
     /// loop {
     ///     let msg_size = conn.recv_buf(&mut buf).unwrap();
     ///     println!("{}", std::str::from_utf8(&buf[0..msg_size as usize]).unwrap())
     /// }
-    pub fn recv_buf(&self, buf: &mut [u8; MAX_RECV_SIZE]) -> TipcResult<i32> {
+    pub fn recv_buf(&self, buf: &mut [u8; MAX_MSG_SIZE]) -> TipcResult<i32> {
         let msg_size = unsafe {
              tipc_recv(
                 self.socket,
                 buf.as_ptr() as *mut c_void,
-                MAX_RECV_SIZE as size_t,
+                MAX_MSG_SIZE as size_t,
                 false,
             )
         };
@@ -425,7 +355,7 @@ impl TipcConn {
     ///
     /// conn.recvfrom_loop(s)
     pub fn recvfrom_loop(&self, tx: Sender<GroupMessage>) {
-        let buf: [u8; MAX_RECV_SIZE] = [0; MAX_RECV_SIZE];
+        let buf: [u8; MAX_MSG_SIZE] = [0; MAX_MSG_SIZE];
         let mut socket_addr = tipc_addr{type_: 0, instance: 0, node: 0, scope: 0};
         let mut member_addr = tipc_addr{type_: 0, instance: 0, node: 0, scope: 0};
         let mut err = 0;
@@ -487,12 +417,4 @@ fn socket_and_node_refs(socket: c_int) -> TipcResult<(u32, u32)> {
     }
 
     Ok((addr.instance, addr.node))
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
 }

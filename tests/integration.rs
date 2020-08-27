@@ -25,7 +25,7 @@ fn test_set_non_blocking_returns_error() {
     conn.bind(&SERVER_ADDR_1).unwrap();
     conn.listen(1).unwrap();
     let e = conn.accept().unwrap_err();
-    assert_eq!(e.code, 11);
+    assert_eq!(e.code(), 11);
 }
 
 #[test]
@@ -110,9 +110,9 @@ fn test_join_and_leave_membership_event() {
         // First message will be a join
         match r.recv().unwrap() {
             GroupMessage::MemberEvent(e) => {
-                assert!(e.joined);
-                assert_eq!(e.service_address, CLIENT_ADDR_1.server_type);
-                assert_eq!(e.service_instance, CLIENT_ADDR_1.instance);
+                assert!(e.joined());
+                assert_eq!(e.service_type(), CLIENT_ADDR_1.server_type);
+                assert_eq!(e.service_instance(), CLIENT_ADDR_1.instance);
             }
             _ => panic!("Unexpected data group data message"),
         }
@@ -120,9 +120,9 @@ fn test_join_and_leave_membership_event() {
         // Second message will be a leave
         match r.recv().unwrap() {
             GroupMessage::MemberEvent(e) => {
-                assert!(!e.joined);
-                assert_eq!(e.service_address, CLIENT_ADDR_1.server_type);
-                assert_eq!(e.service_instance, CLIENT_ADDR_1.instance);
+                assert!(!e.joined());
+                assert_eq!(e.service_type(), CLIENT_ADDR_1.server_type);
+                assert_eq!(e.service_instance(), CLIENT_ADDR_1.instance);
             }
             _ => panic!("Unexpected data group data message"),
         }
@@ -145,7 +145,7 @@ fn setup_listen_server(socktype: SockType) -> TipcConn {
 }
 
 fn assert_message_received(conn: &TipcConn, expected_msg: &str) {
-    let mut buf: [u8; tipc::MAX_RECV_SIZE] = [0; tipc::MAX_RECV_SIZE];
+    let mut buf: [u8; tipc::MAX_MSG_SIZE] = [0; tipc::MAX_MSG_SIZE];
     let msg_size = conn.recv_buf(&mut buf).unwrap();
 
     assert_eq!(

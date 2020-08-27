@@ -65,7 +65,6 @@
 #endif
 
 static uint32_t own_node = 0;
-static uint32_t own_socket = 0;
 
 static inline __u8 node2scope(uint32_t node)
 {
@@ -73,12 +72,6 @@ static inline __u8 node2scope(uint32_t node)
 		return TIPC_NODE_SCOPE;
 	else
 		return TIPC_CLUSTER_SCOPE;
-}
-
-uint32_t tipc_own_socket(void)
-{
-	tipc_own_node();
-	return own_socket;
 }
 
 uint32_t tipc_own_node(void)
@@ -91,7 +84,6 @@ uint32_t tipc_own_node(void)
 
 	sd = tipc_socket(SOCK_RDM);
 	if (tipc_sockaddr(sd, &socket) == 0) {
-		own_socket = socket.instance;
 		own_node = socket.node;
 	}
 	close(sd);
