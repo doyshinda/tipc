@@ -3,6 +3,37 @@
 //! [1]: http://tipc.io/
 //!
 //! This library provides bindings for some of the more common TIPC operations.
+//!
+//! ## Enable tipc kernel module
+//! ```sh
+//! sudo modprobe tipc
+//! ```
+//!
+//! ## Create a new socket
+//! ```ignore
+//! use tipc::{TipcConn, SockType};
+//! let conn = TipcConn::new(SockType::SockRdm).unwrap();
+//! ```
+//!
+//! ## Bind to an address
+//! ```ignore
+//! use tipc::{TipcConn, SockType, TipcScope};
+//! let conn = TipcConn::new(SockType::SockRdm).unwrap();
+//!
+//! let addr = tipc::bind_address(12345, 0, 0, TipcScope::Cluster);
+//! conn.bind(&addr).expect("Unable to bind to address");
+//! ```
+//!
+//! ## Join a group
+//! Note: Joining a group automatically binds to an address and creates the group
+//! if it doesn't already exist.
+//! ```ignore
+//! use tipc::{TipcConn, SockType, TipcScope};
+//! let conn = TipcConn::new(SockType::SockRdm).unwrap();
+//!
+//! let addr = tipc::join_address(12345, 1, TipcScope::Cluster);
+//! conn.join(&addr).expect("Unable to join group");
+//! ```
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 #![allow(non_upper_case_globals)]
@@ -11,11 +42,13 @@
 use std::os::raw::{c_void, c_int};
 use crossbeam_channel::Sender;
 
+pub mod address;
 mod bindings;
 mod cmd;
 mod error;
 mod group;
 
+pub use address::*;
 use bindings::*;
 pub use cmd::{set_host_addr, attach_to_interface};
 pub use group::{GroupMessage, Membership};
@@ -23,14 +56,6 @@ pub use error::TipcError;
 
 pub const MAX_MSG_SIZE: usize = TIPC_MAX_USER_MSG_SIZE as usize;
 
-/// TIPC address details.
-#[derive(Debug)]
-pub struct TipcAddr {
-    pub server_type: u32,
-    pub instance: u32,
-    pub node: u32,
-    pub scope: TipcScope,
-}
 
 /// TIPC socket type to be used.
 #[derive(Clone, Copy)]
@@ -41,20 +66,9 @@ pub enum SockType {
     SockRdm = __socket_type_SOCK_RDM as isize,
 }
 
-#[derive(Debug, Clone, Copy)]
-/// The scope to use when binding to an address.
-/// ```
-/// # use tipc::TipcScope;
-/// assert_eq!(TipcScope::Cluster as u32, 2);
-/// assert_eq!(TipcScope::Node as u32, 3);
-/// ```
-pub enum TipcScope {
-    Cluster = TIPC_CLUSTER_SCOPE as isize,
-    Node = TIPC_NODE_SCOPE as isize,
-}
-
 type TipcResult<T> = Result<T, TipcError>;
 
+/// Wrapper around a socket to provide convenience functions for binding, sending data, etc.
 #[derive(Debug)]
 pub struct TipcConn {
     socket: c_int,
@@ -103,7 +117,7 @@ impl TipcConn {
     /// Connect a stream socket.
     pub fn connect(&self, addr: &TipcAddr) -> TipcResult<()> {
         let addr = tipc_addr {
-            type_: addr.server_type,
+            type_: addr.service_type,
             instance: addr.instance,
             node: addr.node,
             scope: addr.scope as u32,
@@ -167,7 +181,7 @@ impl TipcConn {
         self.send(data)
     }
 
-    /// Anycast data to a random node bound to the `server_type` set in `addr`. TIPC
+    /// Anycast data to a random node bound to the `service_type` set in `addr`. TIPC
     /// protocol will round-robin available hosts. If this call is made in a group, TIPC will
     /// also take into consideration the destination's load, possible passing it by to pick
     /// another node.
@@ -175,7 +189,7 @@ impl TipcConn {
     /// The `instance` and `node` values in `TipcAddr` are ignored.
     pub fn anycast(&self, data: &[u8], addr: &TipcAddr) -> TipcResult<i32> {
         let addr = tipc_addr {
-            type_: addr.server_type,
+            type_: addr.service_type,
             instance: 0,
             node: 0,
             scope: addr.scope as u32,
@@ -197,7 +211,7 @@ impl TipcConn {
     /// Unicast data to a specific socket address. Returns the number of bytes sent.
     ///
     /// When unicasting, `instance` field in `addr` is used to represent the dst socket
-    /// ref, while `node` represents the dst node id. The `server_type` field is ignored.
+    /// ref, while `node` represents the dst node id. The `service_type` field is ignored.
     pub fn unicast(&self, data: &[u8], addr: &TipcAddr) -> TipcResult<i32> {
         let addr = tipc_addr {
             type_: 0,
@@ -220,7 +234,7 @@ impl TipcConn {
     /// `node` field is the upper value in the range.
     pub fn multicast(&self, data: &[u8], addr: &TipcAddr) -> TipcResult<i32> {
         let addr = tipc_addr {
-            type_: addr.server_type,
+            type_: addr.service_type,
             instance: addr.instance,
             node: addr.node,
             scope: addr.scope as u32,
@@ -234,11 +248,11 @@ impl TipcConn {
 
     /// Join a group.
     ///
-    /// The `server_type` field represents the group_id, and the `instance` field represents
+    /// The `service_type` field represents the group_id, and the `instance` field represents
     /// the member id. The `node` field is ignored.
     pub fn join(&self, addr: &TipcAddr) -> TipcResult<()> {
         let mut addr = tipc_addr {
-            type_: addr.server_type,
+            type_: addr.service_type,
             instance: addr.instance,
             node: 0,
             scope: addr.scope as u32,
@@ -265,7 +279,7 @@ impl TipcConn {
     /// Bind to an address and range.
     pub fn bind(&self, addr: &TipcAddr) -> TipcResult<()> {
         let r = unsafe {
-            tipc_bind(self.socket, addr.server_type, addr.instance, addr.node, addr.scope as u32)
+            tipc_bind(self.socket, addr.service_type, addr.instance, addr.node, addr.scope as u32)
         };
         if r < 0 {
             return Err(TipcError::new("Error binding to socket address"));
@@ -279,7 +293,7 @@ impl TipcConn {
     /// # Example
     /// ```ignore
     /// let conn = TipcConn::new(SockType::SockRdm).unwrap();
-    /// let addr = TipcAddr{server_type: 88888, instance: 0, node: 10, scope: TipcScope::CLUSTER};
+    /// let addr = TipcAddr{service_type: 88888, instance: 0, node: 10, scope: TipcScope::CLUSTER};
     /// conn.bind(&addr).expect("Unable to bind to address");
     ///
     /// let (s, r): (Sender<Vec<u8>>, Receiver<Vec<u8>>) = unbounded();
@@ -311,7 +325,7 @@ impl TipcConn {
     /// # Example
     /// ```ignore
     /// let conn = TipcConn::new(SockType::SockRdm).unwrap();
-    /// let addr = TipcAddr{server_type: 88888, instance: 0, node: 10, scope: TipcScope::Cluster};
+    /// let addr = TipcAddr{service_type: 88888, instance: 0, node: 10, scope: TipcScope::Cluster};
     /// conn.bind(&addr).expect("Unable to bind to address");
     /// let mut buf: [u8; tipc::MAX_MSG_SIZE] = [0; tipc::MAX_MSG_SIZE];
     /// loop {
@@ -335,11 +349,11 @@ impl TipcConn {
     }
 
     /// Starts an endless loop, receiving data & group membership messages from the socket
-    /// and sending it to the the transmission side of an unbounded channel.
+    /// and sending it to the transmission side of an unbounded channel.
     /// # Example
     /// ```ignore
     /// let conn = TipcConn::new(SockType::SockRdm).unwrap();
-    /// let addr = BindAddr{server: 88888, lower: 0, upper: 10, scope: TipcScope::Cluster};
+    /// let addr = TipcAddr{service_type: 88888, instance: 0, node: 10, scope: TipcScope::CLUSTER};
     /// conn.bind(&addr).expect("Unable to bind to address");
     ///
     /// let (s, r): (Sender<GroupMessage>, Receiver<GroupMessage>) = unbounded();

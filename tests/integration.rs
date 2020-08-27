@@ -4,13 +4,13 @@ use std::thread;
 use std::time::Duration;
 
 const SERVER_ADDR_1: TipcAddr = TipcAddr{
-    server_type: 12345,
+    service_type: 12345,
     instance: 0,
     node: 0,
     scope: tipc::TipcScope::Cluster
 };
 const CLIENT_ADDR_1: TipcAddr = TipcAddr{
-    server_type: 12345,
+    service_type: 12345,
     instance: 100,
     node: 0,
     scope: tipc::TipcScope::Cluster
@@ -70,7 +70,7 @@ fn test_multicast() {
 fn test_unicast() {
     let server = setup_listen_server(SockType::SockRdm);
     let server_addr = TipcAddr {
-        server_type: 0,
+        service_type: 0,
         instance: server.socket_ref(),
         node: server.node_ref(),
         scope: tipc::TipcScope::Cluster,
@@ -111,7 +111,7 @@ fn test_join_and_leave_membership_event() {
         match r.recv().unwrap() {
             GroupMessage::MemberEvent(e) => {
                 assert!(e.joined());
-                assert_eq!(e.service_type(), CLIENT_ADDR_1.server_type);
+                assert_eq!(e.service_type(), CLIENT_ADDR_1.service_type);
                 assert_eq!(e.service_instance(), CLIENT_ADDR_1.instance);
             }
             _ => panic!("Unexpected data group data message"),
@@ -121,7 +121,7 @@ fn test_join_and_leave_membership_event() {
         match r.recv().unwrap() {
             GroupMessage::MemberEvent(e) => {
                 assert!(!e.joined());
-                assert_eq!(e.service_type(), CLIENT_ADDR_1.server_type);
+                assert_eq!(e.service_type(), CLIENT_ADDR_1.service_type);
                 assert_eq!(e.service_instance(), CLIENT_ADDR_1.instance);
             }
             _ => panic!("Unexpected data group data message"),
