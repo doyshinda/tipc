@@ -17,8 +17,7 @@ path = "src/lib.rs"
 [dependencies]
 crossbeam-channel = "0.4.3"
 errno = "0.2.6"
-clap = "2.3.3"
 
 [build-dependencies]
-bindgen = "0.54.1"
+bindgen = "0.55.1"
 cc = "1.0"
