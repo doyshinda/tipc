@@ -41,18 +41,32 @@ fn test_anycast() {
 
 #[test]
 fn test_broadcast() {
-    let server = TipcConn::new(SockType::SockRdm).unwrap();
-    server.join(SERVER_ADDR, SERVER_INST, SERVER_SCOPE).unwrap();
+    let server1 = TipcConn::new(SockType::SockRdm).unwrap();
+    server1
+        .join(SERVER_ADDR, SERVER_INST, SERVER_SCOPE)
+        .unwrap();
+
+    let server2 = TipcConn::new(SockType::SockRdm).unwrap();
+    server2
+        .join(SERVER_ADDR, SERVER_INST + 1, SERVER_SCOPE)
+        .unwrap();
+
+    // Both servers receive a message for each other's join
+    assert_message_received(&server1, "");
+    assert_message_received(&server2, "");
 
     let client = TipcConn::new(SockType::SockRdm).unwrap();
     client.join(CLIENT_ADDR, CLIENT_INST, CLIENT_SCOPE).unwrap();
 
+    // Servers receive message for client joining
+    assert_message_received(&server1, "");
+    assert_message_received(&server2, "");
+
     let bytes_sent = client.broadcast(TEST_MESSAGE.as_bytes()).unwrap();
     assert_eq!(bytes_sent as usize, TEST_MESSAGE.len());
 
-    // First message is member join message, no length
-    assert_message_received(&server, "");
-    assert_message_received(&server, TEST_MESSAGE);
+    assert_message_received(&server1, TEST_MESSAGE);
+    assert_message_received(&server2, TEST_MESSAGE);
 }
 
 #[test]

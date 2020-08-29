@@ -4,40 +4,53 @@
 //!
 //! This library provides bindings for some of the more common TIPC operations.
 //!
-//! ## Enable tipc kernel module
-//! ```sh
-//! sudo modprobe tipc
-//! ```
+//! ## Prerequisites
+//! * Linux OS
+//! * clang
+//! * TIPC kernel module enabled (`sudo modprobe tipc`)
 //!
-//! ## Create a new socket
-//! ```ignore
-//! use tipc::{TipcConn, SockType};
-//! let conn = TipcConn::new(SockType::SockRdm).unwrap();
-//! ```
-//!
-//! ## Bind to an address
+//! ### Open a socket, bind to an address and listen for messages
 //! ```ignore
 //! use tipc::{TipcConn, SockType, TipcScope};
 //! let conn = TipcConn::new(SockType::SockRdm).unwrap();
 //!
-//! let addr = tipc::bind_address(12345, 0, 0, TipcScope::Cluster);
-//! conn.bind(&addr).expect("Unable to bind to address");
+//! conn.bind(12345, 0, 0, TipcScope::Cluster).expect("Unable to bind to address");
+//! let mut buf: [u8; tipc::MAX_MSG_SIZE] = [0; tipc::MAX_MSG_SIZE];
+//! loop {
+//!     let msg_size = conn.recv_buf(&mut buf).unwrap();
+//!     println!("received: {}", std::str::from_utf8(&buf[0..msg_size as usize]).unwrap())
+//! }
 //! ```
 //!
-//! ## Join a group
+//! ### Join a group and listen for group membership events or messages
 //! Note: Joining a group automatically binds to an address and creates the group
 //! if it doesn't already exist.
 //! ```ignore
-//! use tipc::{TipcConn, SockType, TipcScope};
+//! use tipc::{TipcConn, SockType, TipcScope, GroupMessage};
+//! use std::thread;
+//! use crossbeam_channel::{unbounded, Receiver, Sender};
 //! let conn = TipcConn::new(SockType::SockRdm).unwrap();
 //!
-//! let addr = tipc::join_address(12345, 1, TipcScope::Cluster);
-//! conn.join(&addr).expect("Unable to join group");
+//! conn.join(12345, 1, TipcScope::Cluster).expect("Unable to join group");
+//!
+//! // Create a channel pair and start a recv loop that will send any messages received
+//! // through the channel.
+//! let (s, r): (Sender<GroupMessage>, Receiver<GroupMessage>) = unbounded();
+//! thread::spawn(move || conn.recvfrom_loop(s));
+//!
+//! // Listen for messages
+//! loop {
+//!     match r.recv().unwrap() {
+//!         GroupMessage::MemberEvent(e) => {
+//!             let action = if e.joined() { "joined" } else { "left" };
+//!             println!("group member {}:{} {}", e.socket_ref(), e.node_ref(), action);
+//!         },
+//!         GroupMessage::DataEvent(d) => {
+//!             println!("received message: {}", std::str::from_utf8(&d));
+//!         }
+//!     }
+//! }
 //! ```
-#![allow(non_camel_case_types)]
-#![allow(non_snake_case)]
-#![allow(non_upper_case_globals)]
-#![allow(dead_code)]
 
 use crossbeam_channel::Sender;
 use std::os::raw::{c_int, c_void};
