@@ -1,7 +1,7 @@
 use std::io::Error;
 use std::process::{Command, Output};
 
-const TIPC: &'static str = "tipc";
+const TIPC: &str = "tipc";
 
 /// Set the host addr, can be omitted starting from Linux 4.17.
 /// # Example

@@ -138,7 +138,7 @@ impl TipcConn {
         let addr = tipc_addr {
             type_: service_type,
             instance: service_instance,
-            node: node,
+            node,
             scope: scope as u32,
         };
         let r = unsafe { tipc_connect(self.socket, &addr) };
@@ -175,11 +175,11 @@ impl TipcConn {
         }
 
         let (socket_ref, node_ref) = socket_and_node_refs(socket)?;
-        return Ok(Self {
+        Ok(Self {
             socket,
             socket_ref,
             node_ref,
-        });
+        })
     }
 
     /// Send data to the socket. Returns the number of bytes sent.
@@ -195,7 +195,7 @@ impl TipcConn {
             return Err(TipcError::new("Send error"));
         }
 
-        return Ok(r);
+        Ok(r)
     }
 
     /// Broadcast data to every node in a group. Returns the number
@@ -297,7 +297,7 @@ impl TipcConn {
             return Err(TipcError::new("Leave error"));
         }
 
-        return Ok(());
+        Ok(())
     }
 
     /// Bind to an address and range.
@@ -379,7 +379,7 @@ impl TipcConn {
             return Err(TipcError::new("Receive error"));
         }
 
-        return Ok(msg_size);
+        Ok(msg_size)
     }
 
     /// Starts an endless loop, receiving data & group membership messages from the socket
