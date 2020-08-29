@@ -39,8 +39,8 @@
 #![allow(non_upper_case_globals)]
 #![allow(dead_code)]
 
-use std::os::raw::{c_void, c_int};
 use crossbeam_channel::Sender;
+use std::os::raw::{c_int, c_void};
 
 mod bindings;
 mod cmd;
@@ -48,9 +48,9 @@ mod error;
 mod group;
 
 use bindings::*;
-pub use cmd::{set_host_addr, attach_to_interface};
-pub use group::{GroupMessage, Membership};
+pub use cmd::{attach_to_interface, set_host_addr};
 pub use error::TipcError;
+pub use group::{GroupMessage, Membership};
 
 pub const MAX_MSG_SIZE: usize = TIPC_MAX_USER_MSG_SIZE as usize;
 
@@ -108,11 +108,15 @@ impl TipcConn {
     pub fn new(socktype: SockType) -> TipcResult<Self> {
         let socket = unsafe { tipc_socket(socktype as i32) };
         if socket < 0 {
-            return Err(TipcError::new("Unable to initialize socket"))
+            return Err(TipcError::new("Unable to initialize socket"));
         }
 
         let (socket_ref, node_ref) = socket_and_node_refs(socket)?;
-        Ok(Self {socket, socket_ref, node_ref})
+        Ok(Self {
+            socket,
+            socket_ref,
+            node_ref,
+        })
     }
 
     /// Set the socket to be non-blocking. This causes socket calls to return a
@@ -124,8 +128,13 @@ impl TipcConn {
     }
 
     /// Connect a stream socket.
-    pub fn connect(&self, service_type: u32, service_instance: u32, node: u32, scope: TipcScope)
-    -> TipcResult<()> {
+    pub fn connect(
+        &self,
+        service_type: u32,
+        service_instance: u32,
+        node: u32,
+        scope: TipcScope,
+    ) -> TipcResult<()> {
         let addr = tipc_addr {
             type_: service_type,
             instance: service_instance,
@@ -166,7 +175,11 @@ impl TipcConn {
         }
 
         let (socket_ref, node_ref) = socket_and_node_refs(socket)?;
-        return Ok(Self {socket, socket_ref, node_ref});
+        return Ok(Self {
+            socket,
+            socket_ref,
+            node_ref,
+        });
     }
 
     /// Send data to the socket. Returns the number of bytes sent.
@@ -182,7 +195,7 @@ impl TipcConn {
             return Err(TipcError::new("Send error"));
         }
 
-        return Ok(r)
+        return Ok(r);
     }
 
     /// Broadcast data to every node in a group. Returns the number
@@ -216,8 +229,13 @@ impl TipcConn {
     }
 
     /// Unicast data to a specific socket address. Returns the number of bytes sent.
-    pub fn unicast(&self, data: &[u8], socket_ref: u32, node_ref: u32, scope: TipcScope)
-    -> TipcResult<i32> {
+    pub fn unicast(
+        &self,
+        data: &[u8],
+        socket_ref: u32,
+        node_ref: u32,
+        scope: TipcScope,
+    ) -> TipcResult<i32> {
         let addr = tipc_addr {
             type_: 0,
             instance: socket_ref,
@@ -234,7 +252,14 @@ impl TipcConn {
 
     /// Multicast data to every node bound to the address and range requested. Returns the
     /// number of bytes sent.
-    pub fn multicast(&self, data: &[u8], service_type: u32, lower: u32, upper: u32, scope: TipcScope) -> TipcResult<i32> {
+    pub fn multicast(
+        &self,
+        data: &[u8],
+        service_type: u32,
+        lower: u32,
+        upper: u32,
+        scope: TipcScope,
+    ) -> TipcResult<i32> {
         let addr = tipc_addr {
             type_: service_type,
             instance: lower,
@@ -272,14 +297,25 @@ impl TipcConn {
             return Err(TipcError::new("Leave error"));
         }
 
-        return Ok(())
+        return Ok(());
     }
 
     /// Bind to an address and range.
-    pub fn bind(&self, service_type: u32, service_instance: u32, node: u32, scope: TipcScope)
-    -> TipcResult<()> {
+    pub fn bind(
+        &self,
+        service_type: u32,
+        service_instance: u32,
+        node: u32,
+        scope: TipcScope,
+    ) -> TipcResult<()> {
         let r = unsafe {
-            tipc_bind(self.socket, service_type, service_instance, node, scope as u32)
+            tipc_bind(
+                self.socket,
+                service_type,
+                service_instance,
+                node,
+                scope as u32,
+            )
         };
         if r < 0 {
             return Err(TipcError::new("Error binding to socket address"));
@@ -308,7 +344,7 @@ impl TipcConn {
     /// });
     ///
     /// conn.recv_loop(s)
-    pub fn recv_loop(&self, tx: Sender<Vec<u8>>) -> TipcResult<()>{
+    pub fn recv_loop(&self, tx: Sender<Vec<u8>>) -> TipcResult<()> {
         let mut buf: [u8; MAX_MSG_SIZE] = [0; MAX_MSG_SIZE];
         loop {
             let msg_size = self.recv_buf(&mut buf)?;
@@ -332,7 +368,7 @@ impl TipcConn {
     /// }
     pub fn recv_buf(&self, buf: &mut [u8; MAX_MSG_SIZE]) -> TipcResult<i32> {
         let msg_size = unsafe {
-             tipc_recv(
+            tipc_recv(
                 self.socket,
                 buf.as_ptr() as *mut c_void,
                 MAX_MSG_SIZE as size_t,
@@ -367,8 +403,18 @@ impl TipcConn {
     /// conn.recvfrom_loop(s)
     pub fn recvfrom_loop(&self, tx: Sender<GroupMessage>) {
         let buf: [u8; MAX_MSG_SIZE] = [0; MAX_MSG_SIZE];
-        let mut socket_addr = tipc_addr{type_: 0, instance: 0, node: 0, scope: 0};
-        let mut member_addr = tipc_addr{type_: 0, instance: 0, node: 0, scope: 0};
+        let mut socket_addr = tipc_addr {
+            type_: 0,
+            instance: 0,
+            node: 0,
+            scope: 0,
+        };
+        let mut member_addr = tipc_addr {
+            type_: 0,
+            instance: 0,
+            node: 0,
+            scope: 0,
+        };
         let mut err = 0;
 
         loop {
@@ -384,15 +430,13 @@ impl TipcConn {
             };
 
             let msg = if msg_size == 0 {
-                GroupMessage::MemberEvent(
-                    Membership{
-                        socket_ref: socket_addr.instance,
-                        node_ref: socket_addr.node,
-                        service_address: member_addr.type_,
-                        service_instance: member_addr.instance,
-                        joined: if err == 0 { true } else { false },
-                    }
-                )
+                GroupMessage::MemberEvent(Membership {
+                    socket_ref: socket_addr.instance,
+                    node_ref: socket_addr.node,
+                    service_address: member_addr.type_,
+                    service_instance: member_addr.instance,
+                    joined: if err == 0 { true } else { false },
+                })
             } else {
                 let data = buf[0..msg_size as usize].to_vec();
                 GroupMessage::DataEvent(data)
@@ -424,7 +468,7 @@ fn socket_and_node_refs(socket: c_int) -> TipcResult<(u32, u32)> {
     };
     let r = unsafe { tipc_sockaddr(socket, &mut addr) };
     if r < 0 {
-        return Err(TipcError::new("Unable to determine socket and node refs"))
+        return Err(TipcError::new("Unable to determine socket and node refs"));
     }
 
     Ok((addr.instance, addr.node))

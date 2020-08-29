@@ -1,7 +1,7 @@
-use tipc::{SockType, TipcConn, GroupMessage};
-use crossbeam_channel::{unbounded, Sender, Receiver};
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use std::thread;
 use std::time::Duration;
+use tipc::{GroupMessage, SockType, TipcConn};
 
 const SERVER_ADDR: u32 = 12345u32;
 const SERVER_INST: u32 = 0u32;
@@ -19,7 +19,8 @@ fn test_set_non_blocking_returns_error() {
     let mut conn = TipcConn::new(SockType::SockStream).unwrap();
     conn.set_sock_non_block().unwrap();
 
-    conn.bind(SERVER_ADDR, SERVER_INST, SERVER_NODE, SERVER_SCOPE).unwrap();
+    conn.bind(SERVER_ADDR, SERVER_INST, SERVER_NODE, SERVER_SCOPE)
+        .unwrap();
     conn.listen(1).unwrap();
     let e = conn.accept().unwrap_err();
     assert_eq!(e.code(), 11);
@@ -30,7 +31,9 @@ fn test_anycast() {
     let server = setup_listen_server(SockType::SockRdm);
     let client = TipcConn::new(SockType::SockRdm).unwrap();
 
-    let bytes_sent = client.anycast(TEST_MESSAGE.as_bytes(), SERVER_ADDR, SERVER_SCOPE).unwrap();
+    let bytes_sent = client
+        .anycast(TEST_MESSAGE.as_bytes(), SERVER_ADDR, SERVER_SCOPE)
+        .unwrap();
     assert_eq!(bytes_sent as usize, TEST_MESSAGE.len());
 
     assert_message_received(&server, TEST_MESSAGE);
@@ -57,13 +60,15 @@ fn test_multicast() {
     let server = setup_listen_server(SockType::SockRdm);
     let client = TipcConn::new(SockType::SockRdm).unwrap();
 
-    let bytes_sent = client.multicast(
-        TEST_MESSAGE.as_bytes(),
-        SERVER_ADDR,
-        SERVER_INST,
-        SERVER_NODE,
-        SERVER_SCOPE
-    ).unwrap();
+    let bytes_sent = client
+        .multicast(
+            TEST_MESSAGE.as_bytes(),
+            SERVER_ADDR,
+            SERVER_INST,
+            SERVER_NODE,
+            SERVER_SCOPE,
+        )
+        .unwrap();
     assert_eq!(bytes_sent as usize, TEST_MESSAGE.len());
 
     assert_message_received(&server, TEST_MESSAGE);
@@ -74,12 +79,14 @@ fn test_unicast() {
     let server = setup_listen_server(SockType::SockRdm);
 
     let client = TipcConn::new(SockType::SockRdm).unwrap();
-    let bytes_sent = client.unicast(
-        TEST_MESSAGE.as_bytes(),
-        server.socket_ref(),
-        server.node_ref(),
-        SERVER_SCOPE
-    ).unwrap();
+    let bytes_sent = client
+        .unicast(
+            TEST_MESSAGE.as_bytes(),
+            server.socket_ref(),
+            server.node_ref(),
+            SERVER_SCOPE,
+        )
+        .unwrap();
 
     assert_eq!(bytes_sent as usize, TEST_MESSAGE.len());
 
@@ -96,7 +103,9 @@ fn test_connect_and_send() {
     });
 
     let client = TipcConn::new(SockType::SockSeqpacket).unwrap();
-    client.connect(SERVER_ADDR, SERVER_INST, SERVER_NODE, SERVER_SCOPE).unwrap();
+    client
+        .connect(SERVER_ADDR, SERVER_INST, SERVER_NODE, SERVER_SCOPE)
+        .unwrap();
 
     let bytes_sent = client.send(TEST_MESSAGE.as_bytes()).unwrap();
     assert_eq!(bytes_sent as usize, TEST_MESSAGE.len());
@@ -143,7 +152,9 @@ fn test_join_and_leave_membership_event() {
 
 fn setup_listen_server(socktype: SockType) -> TipcConn {
     let server = TipcConn::new(socktype).unwrap();
-    server.bind(SERVER_ADDR, SERVER_INST, SERVER_NODE, SERVER_SCOPE).unwrap();
+    server
+        .bind(SERVER_ADDR, SERVER_INST, SERVER_NODE, SERVER_SCOPE)
+        .unwrap();
     server
 }
 

@@ -44,8 +44,7 @@ impl fmt::Display for Membership {
         write!(
             f,
             "{}:{}@{}:{}",
-            self.service_address, self.service_instance,
-            self.socket_ref, self.node_ref
+            self.service_address, self.service_instance, self.socket_ref, self.node_ref
         )
     }
 }
@@ -59,4 +58,3 @@ pub enum GroupMessage {
     /// A user-initiated message.
     DataEvent(Vec<u8>),
 }
-

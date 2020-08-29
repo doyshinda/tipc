@@ -1,5 +1,5 @@
-use std::process::{Command, Output};
 use std::io::Error;
+use std::process::{Command, Output};
 
 const TIPC: &'static str = "tipc";
 
