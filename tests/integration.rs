@@ -1,4 +1,3 @@
-use crossbeam_channel::{unbounded, Receiver, Sender};
 use std::thread;
 use std::time::Duration;
 use tipc::{GroupMessage, SockType, TipcConn};
@@ -28,15 +27,45 @@ fn test_set_non_blocking_returns_error() {
 
 #[test]
 fn test_anycast() {
-    let server = setup_listen_server(SockType::SockRdm);
+    let mut server1 = setup_listen_server(SockType::SockRdm);
+    let mut server2 = setup_listen_server(SockType::SockRdm);
+
+    server1.set_sock_non_block().unwrap();
+    server2.set_sock_non_block().unwrap();
+
     let client = TipcConn::new(SockType::SockRdm).unwrap();
 
     let bytes_sent = client
-        .anycast(TEST_MESSAGE.as_bytes(), SERVER_ADDR, SERVER_SCOPE)
+        .anycast(TEST_MESSAGE.as_bytes(), SERVER_ADDR, SERVER_INST, SERVER_SCOPE)
         .unwrap();
     assert_eq!(bytes_sent as usize, TEST_MESSAGE.len());
 
-    assert_message_received(&server, TEST_MESSAGE);
+    let mut buf: [u8; tipc::MAX_MSG_SIZE] = [0; tipc::MAX_MSG_SIZE];
+
+    let r = server1.recv(&mut buf);
+
+    let mut next_server = &server1;
+    if r.is_err() {
+        // server2 received the first message
+        assert_message_received(&server2, TEST_MESSAGE);
+        assert_eq!(r.unwrap_err().code(), 11);
+
+    } else {
+        // server1 received the first message
+        let msg_size = r.unwrap();
+        assert_eq!(
+            std::str::from_utf8(&buf[0..msg_size as usize]).unwrap(),
+            TEST_MESSAGE
+        );
+        next_server = &server2;
+    }
+
+    // Send another message and ensure next_server receives this one
+    let bytes_sent = client
+        .anycast(TEST_MESSAGE.as_bytes(), SERVER_ADDR, SERVER_INST, SERVER_SCOPE)
+        .unwrap();
+    assert_eq!(bytes_sent as usize, TEST_MESSAGE.len());
+    assert_message_received(next_server, TEST_MESSAGE);
 }
 
 #[test]
@@ -71,21 +100,26 @@ fn test_broadcast() {
 
 #[test]
 fn test_multicast() {
-    let server = setup_listen_server(SockType::SockRdm);
-    let client = TipcConn::new(SockType::SockRdm).unwrap();
+    let mut server1 = setup_listen_server(SockType::SockRdm);
+    let mut server2 = setup_listen_server(SockType::SockRdm);
 
+    server1.set_sock_non_block().unwrap();
+    server2.set_sock_non_block().unwrap();
+
+    let client = TipcConn::new(SockType::SockRdm).unwrap();
     let bytes_sent = client
         .multicast(
             TEST_MESSAGE.as_bytes(),
             SERVER_ADDR,
             SERVER_INST,
-            SERVER_NODE,
+            SERVER_INST + 1,
             SERVER_SCOPE,
         )
         .unwrap();
     assert_eq!(bytes_sent as usize, TEST_MESSAGE.len());
 
-    assert_message_received(&server, TEST_MESSAGE);
+    assert_message_received(&server1, TEST_MESSAGE);
+    assert_message_received(&server2, TEST_MESSAGE);
 }
 
 #[test]
@@ -131,10 +165,10 @@ fn test_connect_and_send() {
 fn test_join_and_leave_membership_event() {
     let server = TipcConn::new(SockType::SockRdm).unwrap();
     server.join(SERVER_ADDR, SERVER_INST, SERVER_SCOPE).unwrap();
-    let (s, r): (Sender<GroupMessage>, Receiver<GroupMessage>) = unbounded();
+
     let t1 = thread::spawn(move || {
         // First message will be a join
-        match r.recv().unwrap() {
+        match server.recvfrom().unwrap() {
             GroupMessage::MemberEvent(e) => {
                 assert!(e.joined());
                 assert_eq!(e.service_type(), CLIENT_ADDR);
@@ -144,7 +178,7 @@ fn test_join_and_leave_membership_event() {
         }
 
         // Second message will be a leave
-        match r.recv().unwrap() {
+        match server.recvfrom().unwrap() {
             GroupMessage::MemberEvent(e) => {
                 assert!(!e.joined());
                 assert_eq!(e.service_type(), CLIENT_ADDR);
@@ -153,8 +187,6 @@ fn test_join_and_leave_membership_event() {
             _ => panic!("Unexpected data group data message"),
         }
     });
-
-    thread::spawn(move || server.recvfrom_loop(s));
 
     let client = TipcConn::new(SockType::SockRdm).unwrap();
     client.join(CLIENT_ADDR, CLIENT_INST, CLIENT_SCOPE).unwrap();
@@ -174,7 +206,7 @@ fn setup_listen_server(socktype: SockType) -> TipcConn {
 
 fn assert_message_received(conn: &TipcConn, expected_msg: &str) {
     let mut buf: [u8; tipc::MAX_MSG_SIZE] = [0; tipc::MAX_MSG_SIZE];
-    let msg_size = conn.recv_buf(&mut buf).unwrap();
+    let msg_size = conn.recv(&mut buf).unwrap();
 
     assert_eq!(
         std::str::from_utf8(&buf[0..msg_size as usize]).unwrap(),

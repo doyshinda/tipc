@@ -15,7 +15,6 @@ name = "tipc"
 path = "src/lib.rs"
 
 [dependencies]
-crossbeam-channel = "0.4.3"
 errno = "0.2.6"
 
 [build-dependencies]

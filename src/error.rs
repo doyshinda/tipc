@@ -1,4 +1,5 @@
 use errno::errno;
+use std::fmt;
 
 /// Error information about the attempted TIPC operation
 /// # Example
@@ -32,5 +33,15 @@ impl TipcError {
 
     pub fn description(&self) -> &str {
         &self.description
+    }
+}
+
+impl fmt::Display for TipcError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} [errno: {}]",
+            self.description, self.code
+        )
     }
 }
