@@ -258,8 +258,10 @@ impl TipcConn {
         Ok(bytes_sent)
     }
 
-    /// Multicast data to every node bound to the address and range requested. Returns the
-    /// number of bytes sent.
+    /// Multicast data to every node bound to `service_type`. If not part of a group, the message
+    /// will be sent to any node bound in the range of `lower` to `upper`. If part of a group, the
+    /// message will be sent only to those nodes that are bound to `lower`. Returns the number of
+    /// bytes sent.
     pub fn multicast(
         &self,
         data: &[u8],
@@ -320,16 +322,16 @@ impl TipcConn {
     pub fn bind(
         &self,
         service_type: u32,
-        service_instance: u32,
-        node: u32,
+        lower: u32,
+        upper: u32,
         scope: TipcScope,
     ) -> TipcResult<()> {
         let r = unsafe {
             tipc_bind(
                 self.socket,
                 service_type,
-                service_instance,
-                node,
+                lower,
+                upper,
                 scope as u32,
             )
         };
