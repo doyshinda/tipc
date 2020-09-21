@@ -27,7 +27,7 @@
 //! if it doesn't already exist.
 //! ```ignore
 //! use tipc::{TipcConn, SockType, TipcScope, GroupMessage};
-//! let conn = TipcConn::new(SockType::SockRdm).unwrap();
+//! let mut conn = TipcConn::new(SockType::SockRdm).unwrap();
 //!
 //! conn.join(12345, 1, TipcScope::Cluster).expect("Unable to join group");
 //!
@@ -89,6 +89,7 @@ pub struct TipcConn {
     socket_ref: u32,
     node_ref: u32,
     buf: Vec<u8>,
+    in_group: bool,
 }
 
 impl Drop for TipcConn {
@@ -122,7 +123,8 @@ impl TipcConn {
             socket,
             socket_ref,
             node_ref,
-            buf: [0; MAX_MSG_SIZE].to_vec()
+            buf: [0; MAX_MSG_SIZE].to_vec(),
+            in_group: false,
         })
     }
 
@@ -186,7 +188,8 @@ impl TipcConn {
             socket,
             socket_ref,
             node_ref,
-            buf: [0; MAX_MSG_SIZE].to_vec()
+            buf: [0; MAX_MSG_SIZE].to_vec(),
+            in_group: self.in_group,
         })
     }
 
@@ -221,7 +224,7 @@ impl TipcConn {
         data: &[u8],
         service_type: u32,
         service_instance: u32,
-        scope: TipcScope
+        scope: TipcScope,
     ) -> TipcResult<i32> {
         let addr = tipc_addr {
             type_: service_type,
@@ -270,10 +273,11 @@ impl TipcConn {
         upper: u32,
         scope: TipcScope,
     ) -> TipcResult<i32> {
+        let node = if self.in_group { lower } else { upper };
         let addr = tipc_addr {
             type_: service_type,
             instance: lower,
-            node: upper,
+            node,
             scope: scope as u32,
         };
         let bytes_sent = unsafe {
@@ -292,7 +296,7 @@ impl TipcConn {
     }
 
     /// Join a group. If the group doesn't exist, it is automatically created.
-    pub fn join(&self, group_id: u32, member_id: u32, scope: TipcScope) -> TipcResult<()> {
+    pub fn join(&mut self, group_id: u32, member_id: u32, scope: TipcScope) -> TipcResult<()> {
         let mut addr = tipc_addr {
             type_: group_id,
             instance: member_id,
@@ -305,15 +309,19 @@ impl TipcConn {
             return Err(TipcError::new("Unable to join group"));
         }
 
+        self.in_group = true;
+
         Ok(())
     }
 
     /// Leave a group.
-    pub fn leave(&self) -> TipcResult<()> {
+    pub fn leave(&mut self) -> TipcResult<()> {
         let r = unsafe { tipc_leave(self.socket) };
         if r < 0 {
             return Err(TipcError::new("Leave error"));
         }
+
+        self.in_group = false;
 
         Ok(())
     }
@@ -326,15 +334,7 @@ impl TipcConn {
         upper: u32,
         scope: TipcScope,
     ) -> TipcResult<()> {
-        let r = unsafe {
-            tipc_bind(
-                self.socket,
-                service_type,
-                lower,
-                upper,
-                scope as u32,
-            )
-        };
+        let r = unsafe { tipc_bind(self.socket, service_type, lower, upper, scope as u32) };
         if r < 0 {
             return Err(TipcError::new("Error binding to socket address"));
         }
@@ -372,7 +372,7 @@ impl TipcConn {
     /// Receive data or group membership messages from the socket.
     /// # Example
     /// ```ignore
-    /// let conn = TipcConn::new(SockType::SockRdm).unwrap();
+    /// let mut conn = TipcConn::new(SockType::SockRdm).unwrap();
     /// conn.join(88888, 10, TipsScope::CLuster).expect("Unable to join group");
     ///
     /// loop {

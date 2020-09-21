@@ -36,7 +36,12 @@ fn test_anycast() {
     let client = TipcConn::new(SockType::SockRdm).unwrap();
 
     let bytes_sent = client
-        .anycast(TEST_MESSAGE.as_bytes(), SERVER_ADDR, SERVER_INST, SERVER_SCOPE)
+        .anycast(
+            TEST_MESSAGE.as_bytes(),
+            SERVER_ADDR,
+            SERVER_INST,
+            SERVER_SCOPE,
+        )
         .unwrap();
     assert_eq!(bytes_sent as usize, TEST_MESSAGE.len());
 
@@ -49,7 +54,6 @@ fn test_anycast() {
         // server2 received the first message
         assert_message_received(&server2, TEST_MESSAGE);
         assert_eq!(r.unwrap_err().code(), 11);
-
     } else {
         // server1 received the first message
         let msg_size = r.unwrap();
@@ -62,7 +66,12 @@ fn test_anycast() {
 
     // Send another message and ensure next_server receives this one
     let bytes_sent = client
-        .anycast(TEST_MESSAGE.as_bytes(), SERVER_ADDR, SERVER_INST, SERVER_SCOPE)
+        .anycast(
+            TEST_MESSAGE.as_bytes(),
+            SERVER_ADDR,
+            SERVER_INST,
+            SERVER_SCOPE,
+        )
         .unwrap();
     assert_eq!(bytes_sent as usize, TEST_MESSAGE.len());
     assert_message_received(next_server, TEST_MESSAGE);
@@ -70,12 +79,12 @@ fn test_anycast() {
 
 #[test]
 fn test_broadcast() {
-    let server1 = TipcConn::new(SockType::SockRdm).unwrap();
+    let mut server1 = TipcConn::new(SockType::SockRdm).unwrap();
     server1
         .join(SERVER_ADDR, SERVER_INST, SERVER_SCOPE)
         .unwrap();
 
-    let server2 = TipcConn::new(SockType::SockRdm).unwrap();
+    let mut server2 = TipcConn::new(SockType::SockRdm).unwrap();
     server2
         .join(SERVER_ADDR, SERVER_INST + 1, SERVER_SCOPE)
         .unwrap();
@@ -84,7 +93,7 @@ fn test_broadcast() {
     assert_message_received(&server1, "");
     assert_message_received(&server2, "");
 
-    let client = TipcConn::new(SockType::SockRdm).unwrap();
+    let mut client = TipcConn::new(SockType::SockRdm).unwrap();
     client.join(CLIENT_ADDR, CLIENT_INST, CLIENT_SCOPE).unwrap();
 
     // Servers receive message for client joining
@@ -163,7 +172,7 @@ fn test_connect_and_send() {
 
 #[test]
 fn test_join_and_leave_membership_event() {
-    let server = TipcConn::new(SockType::SockRdm).unwrap();
+    let mut server = TipcConn::new(SockType::SockRdm).unwrap();
     server.join(SERVER_ADDR, SERVER_INST, SERVER_SCOPE).unwrap();
 
     let t1 = thread::spawn(move || {
@@ -188,7 +197,7 @@ fn test_join_and_leave_membership_event() {
         }
     });
 
-    let client = TipcConn::new(SockType::SockRdm).unwrap();
+    let mut client = TipcConn::new(SockType::SockRdm).unwrap();
     client.join(CLIENT_ADDR, CLIENT_INST, CLIENT_SCOPE).unwrap();
     thread::sleep(Duration::from_millis(100));
     client.leave().unwrap();

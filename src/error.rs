@@ -38,10 +38,6 @@ impl TipcError {
 
 impl fmt::Display for TipcError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{} [errno: {}]",
-            self.description, self.code
-        )
+        write!(f, "{} [errno: {}]", self.description, self.code)
     }
 }
