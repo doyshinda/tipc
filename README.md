@@ -1,5 +1,5 @@
 # tipc
-Rust Bindings for Linux TIPC
+Rust Bindings for some of the common Linux TIPC operations.
 
 ## Prerequisites
 * Linux OS
