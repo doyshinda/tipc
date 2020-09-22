@@ -45,6 +45,8 @@
 //! }
 //! ```
 
+#![doc(html_root_url = "https://docs.rs/tipc/0.1.0")]
+
 use std::os::raw::{c_int, c_void};
 
 mod bindings;

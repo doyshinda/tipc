@@ -1,11 +1,12 @@
 [package]
 name = "tipc"
-version = "0.1.0"
+version = "0.1.0" # Keep html_root_url in sync
 authors = ["Abe Friesen <abefriesen.af@gmail.com>"]
 license = "MIT"
 readme = "README.md"
 keywords = ["linux", "tipc"]
 repository = "https://github.com/doyshinda/tipc"
+documentation = "https://docs.rs/tipc"
 description = "Bindings for interoperating with Linux TIPC sockets."
 categories = ["api-bindings"]
 edition = "2018"
