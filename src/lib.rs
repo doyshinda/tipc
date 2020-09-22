@@ -5,8 +5,8 @@
 //! This library provides bindings for some of the more common TIPC operations.
 //!
 //! ## Prerequisites
-//! * Linux OS
-//! * clang
+//! * Linux OS (version >= 4.14 for communication groups)
+//! * Clang compiler
 //! * TIPC kernel module enabled (`sudo modprobe tipc`)
 //!
 //! ### Open a socket, bind to an address and listen for messages
@@ -45,7 +45,7 @@
 //! }
 //! ```
 
-#![doc(html_root_url = "https://docs.rs/tipc/0.1.0")]
+#![doc(html_root_url = "https://docs.rs/tipc/0.1.1")]
 
 use std::os::raw::{c_int, c_void};
 
@@ -69,8 +69,8 @@ pub const MAX_MSG_SIZE: usize = TIPC_MAX_USER_MSG_SIZE as usize;
 /// assert_eq!(TipcScope::Node as u32, 3);
 /// ```
 pub enum TipcScope {
-    Cluster = TIPC_CLUSTER_SCOPE as isize,
-    Node = TIPC_NODE_SCOPE as isize,
+    Cluster = 2,
+    Node = 3,
 }
 
 /// TIPC socket type to be used.
@@ -131,7 +131,7 @@ impl TipcConn {
     }
 
     /// Set the socket to be non-blocking. This causes socket calls to return a
-    /// TipcError with EAGAIN | EWOULDBLOCK error code set when it's not possible
+    /// `TipcError` with EAGAIN | EWOULDBLOCK error code set when it's not possible
     /// to send/recv on the socket.
     pub fn set_sock_non_block(&mut self) -> TipcResult<()> {
         self.socket = unsafe { tipc_sock_non_block(self.socket) };
@@ -387,9 +387,11 @@ impl TipcConn {
     ///                 let event_type = if e.joined() { "joined" } else { "left" };
     ///                 println!("member {} {}", e, event_type);
     ///             },
+    ///         }
     ///         Err(e) => panic!("error receiving from socket: {}", e),
     ///     }
     /// }
+    /// ```
     pub fn recvfrom(&self) -> TipcResult<GroupMessage> {
         let mut socket_addr = tipc_addr {
             type_: 0,

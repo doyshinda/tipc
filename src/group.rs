@@ -33,7 +33,7 @@ impl Membership {
         self.service_instance
     }
 
-    /// 'true' indicates a join, `false` indicates a leave
+    /// `true` indicates a join, `false` indicates a leave
     pub fn joined(&self) -> bool {
         self.joined
     }

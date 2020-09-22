@@ -1,6 +1,6 @@
 [package]
 name = "tipc"
-version = "0.1.0" # Keep html_root_url in sync
+version = "0.1.1" # Keep html_root_url in sync
 authors = ["Abe Friesen <abefriesen.af@gmail.com>"]
 license = "MIT"
 readme = "README.md"
@@ -21,3 +21,7 @@ errno = "0.2.6"
 [build-dependencies]
 bindgen = "0.55.1"
 cc = "1.0"
+
+[package.metadata.docs.rs]
+default-target = "x86_64-unknown-linux-gnu"
+targets = []
