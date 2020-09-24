@@ -1,3 +1,5 @@
+#![cfg(target_os = "linux")]
+
 //! Linux [Transparent Inter Process Communication (TIPC)][1] bindings for Rust
 //!
 //! [1]: http://tipc.io/
