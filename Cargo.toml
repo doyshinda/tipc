@@ -1,6 +1,6 @@
 [package]
 name = "tipc"
-version = "0.1.1" # Keep html_root_url in sync
+version = "0.1.2" # Keep html_root_url in sync
 authors = ["Abe Friesen <abefriesen.af@gmail.com>"]
 license = "MIT"
 readme = "README.md"

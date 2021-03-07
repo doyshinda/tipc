@@ -47,7 +47,7 @@
 //! }
 //! ```
 
-#![doc(html_root_url = "https://docs.rs/tipc/0.1.1")]
+#![doc(html_root_url = "https://docs.rs/tipc/0.1.2")]
 
 use std::os::raw::{c_int, c_void};
 
