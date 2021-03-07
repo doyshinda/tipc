@@ -12,7 +12,7 @@
 //! * TIPC kernel module enabled (`sudo modprobe tipc`)
 //!
 //! ### Open a socket, bind to an address and listen for messages
-//! ```ignore
+//! ```no_run
 //! use tipc::{TipcConn, SockType, TipcScope};
 //! let conn = TipcConn::new(SockType::SockRdm).unwrap();
 //!
@@ -27,7 +27,7 @@
 //! ### Join a group and listen for group membership events or messages
 //! Note: Joining a group automatically binds to an address and creates the group
 //! if it doesn't already exist.
-//! ```ignore
+//! ```no_run
 //! use tipc::{TipcConn, SockType, TipcScope, GroupMessage};
 //! let mut conn = TipcConn::new(SockType::SockRdm).unwrap();
 //!
@@ -349,9 +349,11 @@ impl TipcConn {
     /// Receive data from a socket, copying it to the passed in buffer. Returns
     /// the number of bytes received.
     /// # Example
-    /// ```ignore
+    /// ```no_run
+    /// # use tipc::{TipcConn, SockType, TipcScope};
+    /// # use tipc;
     /// let conn = TipcConn::new(SockType::SockRdm).unwrap();
-    /// conn.bind(88888, 0, 10, TipsScope::CLuster).expect("Unable to bind to address");
+    /// conn.bind(88888, 0, 10, TipcScope::Cluster).expect("Unable to bind to address");
     /// let mut buf: [u8; tipc::MAX_MSG_SIZE] = [0; tipc::MAX_MSG_SIZE];
     /// loop {
     ///     let msg_size = conn.recv(&mut buf).unwrap();
@@ -375,9 +377,11 @@ impl TipcConn {
 
     /// Receive data or group membership messages from the socket.
     /// # Example
-    /// ```ignore
+    /// ```no_run
+    /// # use tipc::{TipcConn, SockType, TipcScope, GroupMessage};
+    /// # use tipc;
     /// let mut conn = TipcConn::new(SockType::SockRdm).unwrap();
-    /// conn.join(88888, 10, TipsScope::CLuster).expect("Unable to join group");
+    /// conn.join(88888, 10, TipcScope::Cluster).expect("Unable to join group");
     ///
     /// loop {
     ///     match conn.recvfrom() {
